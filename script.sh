@@ -20,7 +20,7 @@ fi
 if [ "${ALLOWLIST_FILE_PATH}" != "" ]; then
     docker_cmd+=" -v ${GITHUB_WORKSPACE}/${ALLOWLIST_FILE_PATH}:/bin/${ALLOWLIST_FILE_PATH}"
 fi
-docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest /bin/fossologyscanner"
+docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest"
 docker_cmd+=" ${SCANNERS}"
 docker_cmd+=" ${SCAN_MODE}"
 

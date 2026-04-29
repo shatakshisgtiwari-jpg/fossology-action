@@ -82,15 +82,5 @@ runs:
     GITHUB_REPOSITORY: ${{ inputs.github_repository }}
     GITHUB_API: ${{ inputs.github_api_url }}
     GITHUB_REPO_URL: ${{ inputs.github_repo_url }}
-    GITHUB_REPO_OWNER: ${{ inputs.github_repo_owner }}
-    GITHUB_ACTIONS: ${{ inputs.github_actions }}
-  args:
-    - >-
-      ${{ inputs.scanners }}
-      ${{ inputs.scan_mode }}
-      ${{ inputs.scan_mode == 'differential' && format('--tags {0} {1}', inputs.from_tag, inputs.to_tag) || '' }}
-      ${{ inputs.keyword_conf_file_path != '' && format('--keyword-conf {0}', inputs.keyword_conf_file_path) || '' }}
-      ${{ inputs.allowlist_file_path != '' && format('--allowlist-path {0}', inputs.allowlist_file_path) || '' }}
-      --report ${{ inputs.report_format }}
-      ${{ inputs.scan_mode == 'scan-only-deps' && format('--sbom-path {0}', inputs.sbom_path) || '' }}
-      ${{ inputs.scan_mode == 'scan-dir' && format('--dir-path {0}', inputs.scan_dir) || '' }}
+    GITHUB_REPOSITORY_OWNER: ${{ inputs.github_repo_owner }}
+  args: []
