@@ -75,6 +75,7 @@ inputs:
 runs:
   using: 'docker'
   image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest'
+  entrypoint: '/opt/entrypoint.sh'
   env:
     GITHUB_TOKEN: ${{ inputs.github_token }}
     GITHUB_PULL_REQUEST: ${{ inputs.github_pull_request }}
@@ -84,7 +85,7 @@ runs:
     GITHUB_REPO_OWNER: ${{ inputs.github_repo_owner }}
     GITHUB_ACTIONS: ${{ inputs.github_actions }}
   args:
-    - >
+    - >-
       ${{ inputs.scanners }}
       ${{ inputs.scan_mode }}
       ${{ inputs.scan_mode == 'differential' && format('--tags {0} {1}', inputs.from_tag, inputs.to_tag) || '' }}
