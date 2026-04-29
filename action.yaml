@@ -85,7 +85,6 @@ runs:
     GITHUB_ACTIONS: ${{ inputs.github_actions }}
   args:
     - >
-      /bin/fossologyscanner
       ${{ inputs.scanners }}
       ${{ inputs.scan_mode }}
       ${{ inputs.scan_mode == 'differential' && format('--tags {0} {1}', inputs.from_tag, inputs.to_tag) || '' }}
