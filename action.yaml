@@ -74,8 +74,12 @@ inputs:
 
 runs:
   using: 'docker'
-  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest'
-  entrypoint: '/opt/entrypoint.sh'
+  # [SPDX3-ADDITION] Image is now built directly from fossology-fork
+  # (via Dockerfile.ci) and pushed to GHCR by its CI workflow.
+  # No separate HAD-RadiologyPlus image build needed.
+  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest'
+  # [SPDX3-ADDITION] Removed entrypoint override — base image default handles
+  # everything including --report SPDX3_JSON natively
   env:
     GITHUB_TOKEN: ${{ inputs.github_token }}
     GITHUB_PULL_REQUEST: ${{ inputs.github_pull_request }}
