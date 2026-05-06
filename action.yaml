@@ -74,12 +74,15 @@ inputs:
 
 runs:
   using: 'docker'
-  # [SPDX3-ADDITION] Image is now built directly from fossology-fork
-  # (via Dockerfile.ci) and pushed to GHCR by its CI workflow.
-  # No separate HAD-RadiologyPlus image build needed.
-  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest'
-  # [SPDX3-ADDITION] Removed entrypoint override — base image default handles
-  # everything including --report SPDX3_JSON natively
+  # [SPDX3-ADDITION] The scanner image is built from fossology-fork
+  # (utils/automation/Dockerfile.ci) and pushed to GHCR by its CI workflow
+  # (docker-build.yml / release-publish.yml).
+  # This image ships all scanners (nomossa, ojo, copyright, keyword) plus
+  # spdx-tools with SPDX 3.0 support, pyshacl and semantic-version.
+  # fossology-action-fork references it directly — no local image build needed.
+  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest'
+  # [SPDX3-ADDITION] No entrypoint override needed — the base image default
+  # (bash -c) handles everything including --report SPDX3_JSON natively.
   env:
     GITHUB_TOKEN: ${{ inputs.github_token }}
     GITHUB_PULL_REQUEST: ${{ inputs.github_pull_request }}
@@ -98,5 +101,7 @@ runs:
       ${{ inputs.keyword_conf_file_path != '' && format('--keyword-conf {0}', inputs.keyword_conf_file_path) || '' }}
       ${{ inputs.allowlist_file_path != '' && format('--allowlist-path {0}', inputs.allowlist_file_path) || '' }}
       --report ${{ inputs.report_format }}
+      ${{ inputs.scan_mode == 'scan-only-deps' && format('--sbom-path {0}', inputs.sbom_path) || '' }}
+      ${{ inputs.scan_mode == 'scan-dir' && format('--dir-path {0}', inputs.scan_dir) || '' }}
       ${{ inputs.scan_mode == 'scan-only-deps' && format('--sbom-path {0}', inputs.sbom_path) || '' }}
       ${{ inputs.scan_mode == 'scan-dir' && format('--dir-path {0}', inputs.scan_dir) || '' }}
