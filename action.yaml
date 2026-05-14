@@ -80,7 +80,7 @@ runs:
   # This image ships all scanners (nomossa, ojo, copyright, keyword) plus
   # spdx-tools with SPDX 3.0 support and semantic-version.
   # fossology-action-fork references it directly — no local image build needed.
-  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest'
+  image: 'docker://ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest'
   # [SPDX3-ADDITION] No entrypoint override needed — the base image default
   # (bash -c) handles everything including --report SPDX3_JSON natively.
   env:
