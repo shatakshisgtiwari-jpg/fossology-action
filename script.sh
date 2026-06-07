@@ -20,10 +20,8 @@ fi
 if [ "${ALLOWLIST_FILE_PATH}" != "" ]; then
     docker_cmd+=" -v ${GITHUB_WORKSPACE}/${ALLOWLIST_FILE_PATH}:/bin/${ALLOWLIST_FILE_PATH}"
 fi
-# [SPDX3-ADDITION] The SPDX3-capable scanner image is built from fossology-fork
-# (utils/automation/Dockerfile.ci) and pushed to GHCR by its CI.
-# It contains all scanners + spdx-tools with SPDX 3.0 support.
-docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-spdx3:latest"
+
+docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest"
 docker_cmd+=" ${SCANNERS}"
 docker_cmd+=" ${SCAN_MODE}"
 
