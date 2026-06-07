@@ -44,3 +44,51 @@ fi
 # Run the command
 echo $docker_cmd
 eval $docker_cmd
+
+# Generate dashboard if enabled and SPDX JSON exists
+if [ "${DASHBOARD}" == "true" ]; then
+    echo "Generating license compliance dashboard..."
+    
+    # Find SPDX JSON file
+    SPDX_JSON=""
+    if [ -f "fossology-spdx.json" ]; then
+        SPDX_JSON="fossology-spdx.json"
+    elif [ -f "spdx.json" ]; then
+        SPDX_JSON="spdx.json"
+    elif [ -f "report.spdx.json" ]; then
+        SPDX_JSON="report.spdx.json"
+    else
+        # Search in common output directories
+        SPDX_JSON=$(find . -maxdepth 2 -name "*.spdx.json" -o -name "*spdx*.json" | head -1)
+    fi
+    
+    if [ -n "${SPDX_JSON}" ] && [ -f "${SPDX_JSON}" ]; then
+        echo "Found SPDX JSON: ${SPDX_JSON}"
+        
+        # Set dashboard environment variables
+        export DASHBOARD_ENABLED="${DASHBOARD}"
+        export DASHBOARD_CHARTS="${DASHBOARD_CHARTS}"
+        export DASHBOARD_RISK="${DASHBOARD_RISK}"
+        export DASHBOARD_UNKNOWN="${DASHBOARD_UNKNOWN}"
+        
+        # Determine script directory
+        SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+        if [ -n "${GITHUB_ACTION_PATH}" ]; then
+            SCRIPT_DIR="${GITHUB_ACTION_PATH}"
+        fi
+        
+        # Generate dashboard
+        python3 "${SCRIPT_DIR}/generate_dashboard.py" "${SPDX_JSON}"
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ Dashboard generated successfully"
+        else
+            echo "⚠️ Dashboard generation failed"
+        fi
+    else
+        echo "⚠️ No SPDX JSON file found. Dashboard generation skipped."
+        echo "Note: Set report_format to include SPDX_JSON to enable dashboard."
+    fi
+else
+    echo "Dashboard generation disabled"
+fi
