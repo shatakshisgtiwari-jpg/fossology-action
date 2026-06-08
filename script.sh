@@ -47,7 +47,10 @@ fi
 
 # Run the command
 echo $docker_cmd
+set +e
 eval $docker_cmd
+SCANNER_EXIT_CODE=$?
+set -e
 
 # Generate dashboard if enabled
 if [ "${DASHBOARD}" == "true" ]; then
@@ -106,3 +109,6 @@ if [ "${DASHBOARD}" == "true" ]; then
 else
     echo "Dashboard generation disabled"
 fi
+
+# Exit with the scanner's original exit code
+exit ${SCANNER_EXIT_CODE}
