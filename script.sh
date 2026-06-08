@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 # Prepare docker run command with arguments
-docker_cmd="docker run --rm --name fossologyscanner -w /opt/repo -v ${PWD}:/opt/repo \
+docker_cmd="docker run --rm --name fossologyscanner --entrypoint /bin/fossologyscanner -w /opt/repo -v ${PWD}:/opt/repo \
     -e GITHUB_TOKEN=${GITHUB_TOKEN} \
     -e GITHUB_PULL_REQUEST=${GITHUB_PULL_REQUEST} \
     -e GITHUB_REPOSITORY=${GITHUB_REPOSITORY} \
@@ -22,7 +22,6 @@ if [ "${ALLOWLIST_FILE_PATH}" != "" ]; then
 fi
 
 docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest"
-docker_cmd+=" /bin/fossologyscanner"
 docker_cmd+=" ${SCANNERS}"
 docker_cmd+=" ${SCAN_MODE}"
 

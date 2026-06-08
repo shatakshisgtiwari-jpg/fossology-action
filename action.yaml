@@ -13,7 +13,7 @@ inputs:
   scan_mode:
     description: "Run the scan in one of the following modes: repo, differential, scan-only-deps, scan-dir"
     required: false
-    default: "diff"
+    default: "repo"
   scanners:
     description: "One of the scanner to invoke: nomos, copyright, keyword, ojo"
     required: false
