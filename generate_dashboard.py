@@ -62,9 +62,12 @@ def parse_spdx3_json(file_path):
         print(f"❌ Error parsing SPDX3 file: {e}", file=sys.stderr)
         return None, None
 
-    graph = data.get('@graph', [])
-    if not graph:
-        graph = [data]
+    if isinstance(data, list):
+        graph = data
+    else:
+        graph = data.get('@graph', [])
+        if not graph:
+            graph = [data]
 
     licenses, unknown_files = [], []
     elements = {}
