@@ -75,7 +75,11 @@ def parse_spdx3_json(file_path):
     files_and_packages = []
 
     for item in graph:
+        if not isinstance(item, dict):
+            continue
         item_type = item.get('type', '')
+        if isinstance(item_type, list):
+            item_type = ' '.join(item_type)
         item_id = item.get('spdxId', item.get('@id', ''))
         if item_id:
             elements[item_id] = item
@@ -84,22 +88,54 @@ def parse_spdx3_json(file_path):
         elif 'Relationship' in item_type:
             relationships.append(item)
 
-    # Build license map from relationships
+    def extract_license_str(val):
+        """Extract a license string from a value that may be str, dict, or list."""
+        if not val:
+            return None
+        if isinstance(val, str):
+            # Strip common SPDX URI prefixes
+            for prefix in ('https://spdx.org/licenses/', 'http://spdx.org/licenses/'):
+                if val.startswith(prefix):
+                    return val[len(prefix):]
+            # Skip bare URIs / IDs that aren't license names
+            if val.startswith('http') or val.startswith('_:'):
+                return None
+            return val if val not in ('NOASSERTION', 'NONE', '') else None
+        if isinstance(val, list):
+            parts = [extract_license_str(v) for v in val]
+            parts = [p for p in parts if p]
+            return ' AND '.join(parts) if parts else None
+        if isinstance(val, dict):
+            # SPDX 3.0: simplelicensing_LicenseExpression carries the text here
+            for key in ('simplelicensing_licenseExpression', 'licenseExpression',
+                        'simplelicensing_licenseExpressionParsed',
+                        'name', 'spdxId', '@id'):
+                v = val.get(key)
+                if v and isinstance(v, str):
+                    return extract_license_str(v)
+        return None
+
+    # Build license map from relationships (SPDX 3.0 HAS_CONCLUDED_LICENSE etc.)
     license_map = {}
     for rel in relationships:
         rel_type = rel.get('relationshipType', '')
-        if 'License' in rel_type or 'license' in rel_type:
+        if isinstance(rel_type, str) and ('License' in rel_type or 'license' in rel_type
+                                           or 'CONCLUDED' in rel_type.upper()
+                                           or 'DECLARED' in rel_type.upper()):
             from_id = rel.get('from', '')
             to_ids = rel.get('to', [])
             if isinstance(to_ids, str):
                 to_ids = [to_ids]
             for to_id in to_ids:
                 target = elements.get(to_id, {})
-                lic_name = target.get('name', to_id)
-                for prefix in ('LicenseRef-', 'https://spdx.org/licenses/'):
-                    if lic_name.startswith(prefix):
-                        lic_name = lic_name[len(prefix):]
-                license_map[from_id] = lic_name
+                lic_name = extract_license_str(
+                    target.get('simplelicensing_licenseExpression')
+                    or target.get('licenseExpression')
+                    or target.get('name')
+                    or to_id
+                )
+                if lic_name:
+                    license_map[from_id] = lic_name
 
     for item in files_and_packages:
         item_id = item.get('spdxId', item.get('@id', ''))
@@ -107,16 +143,18 @@ def parse_spdx3_json(file_path):
 
         lic = None
         for key in ('software_concludedLicense', 'concludedLicense',
-                     'software_declaredLicense', 'declaredLicense'):
+                    'software_declaredLicense', 'declaredLicense'):
             val = item.get(key)
-            if val:
-                lic = val if isinstance(val, str) else val.get('name', val.get('@id', ''))
-                break
+            if val is not None:
+                lic = extract_license_str(val)
+                if lic:
+                    break
 
-        if not lic or lic in ('NOASSERTION', 'NONE', None, ''):
-            lic = license_map.get(item_id, 'NOASSERTION')
+        if not lic:
+            lic = license_map.get(item_id)
 
-        if lic in ('NOASSERTION', 'NONE', None, '', 'NoAssertionLicense'):
+        if not lic or lic in ('NOASSERTION', 'NONE', 'NoAssertionLicense',
+                               'https://spdx.org/rdf/3.0.0/terms/Core/NoAssertionLicense'):
             lic = 'NOASSERTION'
             unknown_files.append(file_name)
 
