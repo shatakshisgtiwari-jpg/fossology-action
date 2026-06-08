@@ -22,6 +22,7 @@ if [ "${ALLOWLIST_FILE_PATH}" != "" ]; then
 fi
 
 docker_cmd+=" ghcr.io/shatakshisgtiwari-jpg/fossology-scanner:latest"
+docker_cmd+=" /bin/fossologyscanner"
 docker_cmd+=" ${SCANNERS}"
 docker_cmd+=" ${SCAN_MODE}"
 
@@ -38,54 +39,70 @@ fi
 if [ "${REPORT_FORMAT}" != "" ]; then
     docker_cmd+=" --report ${REPORT_FORMAT}"
 fi
+if [ "${SCAN_MODE}" == "scan-only-deps" ] && [ "${SBOM_PATH}" != "" ]; then
+    docker_cmd+=" --sbom-path ${SBOM_PATH}"
+fi
+if [ "${SCAN_MODE}" == "scan-dir" ] && [ "${SCAN_DIR}" != "" ]; then
+    docker_cmd+=" --dir-path ${SCAN_DIR}"
+fi
 
 # Run the command
 echo $docker_cmd
 eval $docker_cmd
 
-# Generate dashboard if enabled and SPDX JSON exists
+# Generate dashboard if enabled
 if [ "${DASHBOARD}" == "true" ]; then
     echo "Generating license compliance dashboard..."
-    
-    # Find SPDX JSON file
-    SPDX_JSON=""
-    if [ -f "fossology-spdx.json" ]; then
-        SPDX_JSON="fossology-spdx.json"
-    elif [ -f "spdx.json" ]; then
-        SPDX_JSON="spdx.json"
-    elif [ -f "report.spdx.json" ]; then
-        SPDX_JSON="report.spdx.json"
-    else
-        # Search in common output directories
-        SPDX_JSON=$(find . -maxdepth 2 -name "*.spdx.json" -o -name "*spdx*.json" | head -1)
+
+    # Determine script directory
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    if [ -n "${GITHUB_ACTION_PATH}" ]; then
+        SCRIPT_DIR="${GITHUB_ACTION_PATH}"
     fi
-    
-    if [ -n "${SPDX_JSON}" ] && [ -f "${SPDX_JSON}" ]; then
-        echo "Found SPDX JSON: ${SPDX_JSON}"
-        
-        # Set dashboard environment variables
+
+    # Find report file based on REPORT_FORMAT
+    REPORT_FILE=""
+    case "${REPORT_FORMAT}" in
+        SPDX_JSON)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.json" -o -name "*spdx*.json" \) ! -name "*.spdx3.*" -type f 2>/dev/null | head -1) ;;
+        SPDX3_JSON)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx3.json" -o -name "*.spdx3*.json" -o -name "*.jsonld" \) -type f 2>/dev/null | head -1) ;;
+        SPDX_YAML)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.yaml" -o -name "*.spdx.yml" -o -name "*spdx*.yaml" \) -type f 2>/dev/null | head -1) ;;
+        SPDX_RDF)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.rdf" -o -name "*spdx*.rdf" \) ! -name "*.spdx3.*" -type f 2>/dev/null | head -1) ;;
+        SPDX_TAG_VALUE)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx" -o -name "*.spdx.tv" -o -name "*spdx*.tv" \) -type f 2>/dev/null | head -1) ;;
+        SPDX3_TTL)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx3.ttl" -o -name "*.ttl" \) -type f 2>/dev/null | head -1) ;;
+        SPDX3_RDF)
+            REPORT_FILE=$(find . -maxdepth 2 -name "*.spdx3.rdf" -type f 2>/dev/null | head -1) ;;
+        TEXT|*)
+            REPORT_FILE=$(find . -maxdepth 2 \( -name "*fossology*" -o -name "*scanner*" -o -name "*license*" \) -type f 2>/dev/null | head -1) ;;
+    esac
+
+    # Fallback: search for any recognizable report file
+    if [ -z "${REPORT_FILE}" ]; then
+        REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.json" -o -name "*.spdx3.json" -o -name "*.spdx.yaml" -o -name "*.spdx.yml" -o -name "*.spdx.rdf" -o -name "*.spdx" -o -name "*.spdx.tv" -o -name "*.jsonld" -o -name "*.ttl" \) -type f 2>/dev/null | head -1)
+    fi
+
+    if [ -f "${REPORT_FILE}" ]; then
+        echo "Found report file: ${REPORT_FILE}"
+
         export DASHBOARD_ENABLED="${DASHBOARD}"
         export DASHBOARD_CHARTS="${DASHBOARD_CHARTS}"
         export DASHBOARD_RISK="${DASHBOARD_RISK}"
         export DASHBOARD_UNKNOWN="${DASHBOARD_UNKNOWN}"
-        
-        # Determine script directory
-        SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-        if [ -n "${GITHUB_ACTION_PATH}" ]; then
-            SCRIPT_DIR="${GITHUB_ACTION_PATH}"
-        fi
-        
-        # Generate dashboard
-        python3 "${SCRIPT_DIR}/generate_dashboard.py" "${SPDX_JSON}"
-        
+
+        python3 "${SCRIPT_DIR}/generate_dashboard.py" "${REPORT_FILE}" --format "${REPORT_FORMAT}"
+
         if [ $? -eq 0 ]; then
             echo "✅ Dashboard generated successfully"
         else
             echo "⚠️ Dashboard generation failed"
         fi
     else
-        echo "⚠️ No SPDX JSON file found. Dashboard generation skipped."
-        echo "Note: Set report_format to include SPDX_JSON to enable dashboard."
+        echo "⚠️ No report file found for format '${REPORT_FORMAT}'. Dashboard generation skipped."
     fi
 else
     echo "Dashboard generation disabled"
