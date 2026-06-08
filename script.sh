@@ -14,6 +14,16 @@ docker_cmd="docker run --rm --name fossologyscanner --entrypoint /bin/fossologys
     -e GITHUB_REPO_OWNER=${GITHUB_REPO_OWNER} \
     -e GITHUB_ACTIONS"
 
+# Mount $GITHUB_STEP_SUMMARY into the container so any process inside can write
+# to the GitHub Actions job summary directly (mirrors how SCANOSS writes natively).
+# The host file is bind-mounted at a fixed container path and the env var is
+# overridden to point to that path so generate_dashboard.py (or the scanner
+# itself) can append markdown without knowing the host path.
+if [ -n "${GITHUB_STEP_SUMMARY}" ]; then
+    docker_cmd+=" -v ${GITHUB_STEP_SUMMARY}:/github/step_summary"
+    docker_cmd+=" -e GITHUB_STEP_SUMMARY=/github/step_summary"
+fi
+
 if [ "${KEYWORD_CONF_FILE_PATH}" != "" ]; then
     docker_cmd+=" -v ${GITHUB_WORKSPACE}/${KEYWORD_CONF_FILE_PATH}:/bin/${KEYWORD_CONF_FILE_PATH}"
 fi
