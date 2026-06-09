@@ -13,6 +13,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -23,15 +24,25 @@ if hasattr(sys.stdout, 'reconfigure'):
 if hasattr(sys.stderr, 'reconfigure'):
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
-# Risk classification (High: strong copyleft, Medium: weak copyleft, Low: permissive)
-HIGH_RISK = {'GPL-1.0', 'GPL-2.0', 'GPL-3.0', 'GPL-1.0-only', 'GPL-2.0-only', 'GPL-3.0-only',
-             'GPL-1.0-or-later', 'GPL-2.0-or-later', 'GPL-3.0-or-later', 'AGPL-1.0', 'AGPL-3.0',
-             'AGPL-1.0-only', 'AGPL-3.0-only', 'AGPL-1.0-or-later', 'AGPL-3.0-or-later',
-             'SSPL-1.0', 'RPL-1.5', 'EUPL-1.1', 'EUPL-1.2', 'OSL-3.0'}
+# Risk classification via regex patterns (High: strong copyleft, Medium: weak copyleft, Low: permissive).
+# Patterns match SPDX license IDs by family prefix, so all versions and suffix variants
+# (e.g. -only, -or-later) are covered automatically without listing every ID explicitly.
+_HIGH_RISK_PATTERNS = re.compile(
+    r'^(GPL|AGPL|SSPL|RPL|EUPL|OSL)-',
+    re.IGNORECASE,
+)
+_MEDIUM_RISK_PATTERNS = re.compile(
+    r'^(LGPL|MPL|EPL|CDDL|CPL|APSL)-',
+    re.IGNORECASE,
+)
 
-MEDIUM_RISK = {'LGPL-2.0', 'LGPL-2.1', 'LGPL-3.0', 'LGPL-2.0-only', 'LGPL-2.1-only', 'LGPL-3.0-only',
-               'LGPL-2.0-or-later', 'LGPL-2.1-or-later', 'LGPL-3.0-or-later', 'MPL-1.0', 'MPL-1.1',
-               'MPL-2.0', 'EPL-1.0', 'EPL-2.0', 'CDDL-1.0', 'CDDL-1.1', 'CPL-1.0', 'APSL-2.0'}
+
+def _is_high_risk(license_id: str) -> bool:
+    return bool(_HIGH_RISK_PATTERNS.match(license_id))
+
+
+def _is_medium_risk(license_id: str) -> bool:
+    return bool(_MEDIUM_RISK_PATTERNS.match(license_id))
 
 
 def parse_spdx_json(file_path):
@@ -373,14 +384,13 @@ def parse_report(file_path, report_format=None):
     return parser(file_path)
 
 
-def classify_risk(license_id):
-    """Classify license by risk level."""
-    if license_id in HIGH_RISK:
+def classify_risk(license_id: str) -> tuple:
+    """Classify a SPDX license ID by copyleft risk level."""
+    if _is_high_risk(license_id):
         return 'High', '🔴'
-    elif license_id in MEDIUM_RISK:
+    elif _is_medium_risk(license_id):
         return 'Medium', '🟡'
-    else:
-        return 'Low', '🟢'
+    return 'Low', '🟢'
 
 
 def generate_dashboard(licenses, unknown_files, include_charts=True, include_risk=True, include_unknown=True):
@@ -392,15 +402,15 @@ def generate_dashboard(licenses, unknown_files, include_charts=True, include_ris
     unique_licenses = len(filtered)
     
     # Classify by risk
-    high_risk_files = sum(v for k, v in filtered.items() if k in HIGH_RISK)
-    medium_risk_files = sum(v for k, v in filtered.items() if k in MEDIUM_RISK)
-    low_risk_files = sum(v for k, v in filtered.items() if k not in HIGH_RISK and k not in MEDIUM_RISK)
+    high_risk_files = sum(v for k, v in filtered.items() if _is_high_risk(k))
+    medium_risk_files = sum(v for k, v in filtered.items() if _is_medium_risk(k))
+    low_risk_files = sum(v for k, v in filtered.items() if not _is_high_risk(k) and not _is_medium_risk(k))
     
     # Sort licenses by count
     sorted_licenses = sorted(filtered.items(), key=lambda x: x[1], reverse=True)
     
     # Build dashboard
-    md = "# 📊 License Compliance Dashboard\n\n"
+    md = "#  License Compliance Dashboard\n\n"
     
     # Section 1: KPI Overview
     md += "| Metric | Value |\n|--------|-------|\n"
@@ -416,20 +426,20 @@ def generate_dashboard(licenses, unknown_files, include_charts=True, include_ris
         top_10 = sorted_licenses[:10]
         
         # Pie chart
-        md += "## 📈 License Distribution\n\n```mermaid\npie title License Distribution\n"
+        md += "##  License Distribution\n\n```mermaid\npie title License Distribution\n"
         for lic, count in top_10:
             md += f'    "{lic}" : {count}\n'
         md += "```\n\n---\n\n"
         
         # Bar chart (using graph for better compatibility)
-        md += "## 📊 Top Licenses by File Count\n\n```mermaid\n%%{init: {'theme':'base'}}%%\n"
+        md += "##  Top Licenses by File Count\n\n```mermaid\n%%{init: {'theme':'base'}}%%\n"
         md += "graph LR\n    subgraph \" \"\n"
         for i, (lic, count) in enumerate(top_10):
             md += f'    L{i}["{lic}: {count} files"]\n'
         md += "    end\n```\n\n---\n\n"
     
     # Section 3: License Inventory
-    md += "## 📋 License Inventory\n\n| License | Files |\n|---------|-------|\n"
+    md += "##  License Inventory\n\n| License | Files |\n|---------|-------|\n"
     for lic, count in sorted_licenses[:20]:
         md += f"| {lic} | {count} |\n"
     if len(sorted_licenses) > 20:
