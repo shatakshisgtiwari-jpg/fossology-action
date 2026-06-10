@@ -14,15 +14,21 @@ docker_cmd="docker run --rm --name fossologyscanner --entrypoint /bin/fossologys
     -e GITHUB_REPO_OWNER=${GITHUB_REPO_OWNER} \
     -e GITHUB_ACTIONS"
 
-# Mount $GITHUB_STEP_SUMMARY into the container so any process inside can write
-# to the GitHub Actions job summary directly (mirrors how SCANOSS writes natively).
-# The host file is bind-mounted at a fixed container path and the env var is
-# overridden to point to that path so generate_dashboard.py (or the scanner
-# itself) can append markdown without knowing the host path.
+# Mount $GITHUB_STEP_SUMMARY into the container so DashboardReport can
+# append markdown to the GitHub Actions job summary directly.
 if [ -n "${GITHUB_STEP_SUMMARY}" ]; then
     docker_cmd+=" -v ${GITHUB_STEP_SUMMARY}:/github/step_summary"
     docker_cmd+=" -e GITHUB_STEP_SUMMARY=/github/step_summary"
 fi
+
+# Pass dashboard configuration into the container.
+# fossologyscanner.py reads DASHBOARD_ENABLED to decide whether to invoke
+# DashboardReport after scanning — no external script or SPDX parsing needed.
+docker_cmd+=" -e DASHBOARD_ENABLED=${DASHBOARD:-true}"
+docker_cmd+=" -e DASHBOARD_CHARTS=${DASHBOARD_CHARTS:-true}"
+docker_cmd+=" -e DASHBOARD_RISK=${DASHBOARD_RISK:-true}"
+docker_cmd+=" -e DASHBOARD_UNKNOWN=${DASHBOARD_UNKNOWN:-true}"
+docker_cmd+=" -e DASHBOARD_COPYRIGHTS=${DASHBOARD_COPYRIGHTS:-true}"
 
 if [ "${KEYWORD_CONF_FILE_PATH}" != "" ]; then
     docker_cmd+=" -v ${GITHUB_WORKSPACE}/${KEYWORD_CONF_FILE_PATH}:/bin/${KEYWORD_CONF_FILE_PATH}"
@@ -62,62 +68,13 @@ eval $docker_cmd
 SCANNER_EXIT_CODE=$?
 set -e
 
-# Generate dashboard if enabled
+# Dashboard is now generated INSIDE the container by fossologyscanner.py
+# via DashboardReport when DASHBOARD_ENABLED=true.
+# No external report-file parsing is needed.
 if [ "${DASHBOARD}" == "true" ]; then
-    echo "Generating license compliance dashboard..."
-
-    # Determine script directory
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    if [ -n "${GITHUB_ACTION_PATH}" ]; then
-        SCRIPT_DIR="${GITHUB_ACTION_PATH}"
-    fi
-
-    # Find report file based on REPORT_FORMAT
-    REPORT_FILE=""
-    case "${REPORT_FORMAT}" in
-        SPDX_JSON)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.json" -o -name "*spdx*.json" \) ! -name "*.spdx3.*" -type f 2>/dev/null | head -1) ;;
-        SPDX3_JSON)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx3.json" -o -name "*.spdx3*.json" -o -name "*.jsonld" \) -type f 2>/dev/null | head -1) ;;
-        SPDX_YAML)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.yaml" -o -name "*.spdx.yml" -o -name "*spdx*.yaml" \) -type f 2>/dev/null | head -1) ;;
-        SPDX_RDF)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.rdf" -o -name "*spdx*.rdf" \) ! -name "*.spdx3.*" -type f 2>/dev/null | head -1) ;;
-        SPDX_TAG_VALUE)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx" -o -name "*.spdx.tv" -o -name "*spdx*.tv" \) -type f 2>/dev/null | head -1) ;;
-        SPDX3_TTL)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx3.ttl" -o -name "*.ttl" \) -type f 2>/dev/null | head -1) ;;
-        SPDX3_RDF)
-            REPORT_FILE=$(find . -maxdepth 2 -name "*.spdx3.rdf" -type f 2>/dev/null | head -1) ;;
-        TEXT|*)
-            REPORT_FILE=$(find . -maxdepth 2 \( -name "*fossology*" -o -name "*scanner*" -o -name "*license*" \) -type f 2>/dev/null | head -1) ;;
-    esac
-
-    # Fallback: search for any recognizable report file
-    if [ -z "${REPORT_FILE}" ]; then
-        REPORT_FILE=$(find . -maxdepth 2 \( -name "*.spdx.json" -o -name "*.spdx3.json" -o -name "*.spdx.yaml" -o -name "*.spdx.yml" -o -name "*.spdx.rdf" -o -name "*.spdx" -o -name "*.spdx.tv" -o -name "*.jsonld" -o -name "*.ttl" \) -type f 2>/dev/null | head -1)
-    fi
-
-    if [ -f "${REPORT_FILE}" ]; then
-        echo "Found report file: ${REPORT_FILE}"
-
-        export DASHBOARD_ENABLED="${DASHBOARD}"
-        export DASHBOARD_CHARTS="${DASHBOARD_CHARTS}"
-        export DASHBOARD_RISK="${DASHBOARD_RISK}"
-        export DASHBOARD_UNKNOWN="${DASHBOARD_UNKNOWN}"
-
-        python3 "${SCRIPT_DIR}/generate_dashboard.py" "${REPORT_FILE}" --format "${REPORT_FORMAT}"
-
-        if [ $? -eq 0 ]; then
-            echo "✅ Dashboard generated successfully"
-        else
-            echo "⚠️ Dashboard generation failed"
-        fi
-    else
-        echo "⚠️ No report file found for format '${REPORT_FORMAT}'. Dashboard generation skipped."
-    fi
+    echo "Dashboard was generated inside the container (direct scanner mode)."
 else
-    echo "Dashboard generation disabled"
+    echo "Dashboard generation disabled."
 fi
 
 # Exit with the scanner's original exit code
